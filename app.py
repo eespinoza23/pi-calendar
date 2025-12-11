@@ -63,14 +63,14 @@ TRANSLATIONS = {
         'event': 'Event',
         'download_csv': '📥 Download CSV',
         'configure_sidebar': '👈 Configure parameters in the sidebar and press "Generate Calendar"',
-        'version': 'PI Cadence Calculator | Version 2.2',
+        'version': 'PI Cadence Calculator | Version 2.3',
         'saved': '✅ Saved',
         'language': 'Language',
         'save_config': '💾 Save/Load Configuration',
-        'save_config_file': '📥 Download Configuration',
+        'save_config_file': '📥 Download Full Configuration',
         'load_config_file': '📤 Upload Configuration',
         'config_saved': '✅ Configuration downloaded successfully!',
-        'config_loaded': '✅ Configuration loaded successfully!',
+        'config_loaded': '✅ Configuration loaded successfully! Click Generate Calendar to see results.',
         'config_error': '❌ Error loading configuration file'
     },
     'fr': {
@@ -129,14 +129,14 @@ TRANSLATIONS = {
         'event': 'Événement',
         'download_csv': '📥 Télécharger CSV',
         'configure_sidebar': '👈 Configurez les paramètres dans la barre latérale et appuyez sur "Générer le Calendrier"',
-        'version': 'Calculateur de Cadence PI | Version 2.2',
+        'version': 'Calculateur de Cadence PI | Version 2.3',
         'saved': '✅ Enregistré',
         'language': 'Langue',
         'save_config': '💾 Sauvegarder/Charger Configuration',
-        'save_config_file': '📥 Télécharger la Configuration',
-        'load_config_file': '📤 Téléverser la Configuration',
+        'save_config_file': '📥 Télécharger Configuration Complète',
+        'load_config_file': '📤 Téléverser Configuration',
         'config_saved': '✅ Configuration téléchargée avec succès!',
-        'config_loaded': '✅ Configuration chargée avec succès!',
+        'config_loaded': '✅ Configuration chargée avec succès! Cliquez sur Générer le Calendrier pour voir les résultats.',
         'config_error': '❌ Erreur lors du chargement du fichier de configuration'
     }
 }
@@ -149,12 +149,12 @@ t = TRANSLATIONS[lang]
 
 st.title(t['title'])
 
-# ============= CONFIGURATION SAVE/LOAD =============
+# ============= ENHANCED CONFIGURATION SAVE/LOAD =============
 
-def create_config_dict():
-    """Create a dictionary with all current configuration"""
+def create_full_config_dict():
+    """Create a complete dictionary with ALL configuration AND generated events"""
     config = {
-        'version': '2.2',
+        'version': '2.3',
         'language': lang,
         'year': st.session_state.get('config_year', 2026),
         'num_pis': st.session_state.get('config_num_pis', 4),
@@ -183,10 +183,26 @@ def create_config_dict():
             } for holiday in st.session_state.get('config_manual_holidays', [])
         ]
     }
+
+    # Save generated events if they exist
+    if st.session_state.get('generated', False) and st.session_state.get('events'):
+        events = st.session_state['events']
+        config['generated_events'] = [
+            {
+                'PI': e['PI'],
+                'Tren': e['Tren'],
+                'Evento': e['Evento'],
+                'Inicio': e['Inicio'].isoformat(),
+                'Fin': e['Fin'].isoformat(),
+                'Tipo': e['Tipo'],
+                'ID': e['ID']
+            } for e in events
+        ]
+
     return config
 
-def load_config_from_dict(config):
-    """Load configuration from dictionary into session state"""
+def load_full_config_from_dict(config):
+    """Load complete configuration including events from dictionary"""
     try:
         st.session_state['config_year'] = config.get('year', 2026)
         st.session_state['config_num_pis'] = config.get('num_pis', 4)
@@ -199,14 +215,14 @@ def load_config_from_dict(config):
         st.session_state['config_hack_mode'] = config.get('hack_mode', 'auto')
         st.session_state['config_hack_iter'] = config.get('hack_iter', 3)
         st.session_state['config_hack_week'] = config.get('hack_week', 1)
-        
+
         if config.get('hack_start'):
             st.session_state['config_hack_start'] = date.fromisoformat(config['hack_start'])
         if config.get('hack_end'):
             st.session_state['config_hack_end'] = date.fromisoformat(config['hack_end'])
-        
+
         st.session_state['config_include_canada'] = config.get('include_canada_holidays', True)
-        
+
         # Load custom blocks
         custom_blocks = []
         for block in config.get('custom_blocks', []):
@@ -215,7 +231,7 @@ def load_config_from_dict(config):
                 'end': date.fromisoformat(block['end'])
             })
         st.session_state['config_custom_blocks'] = custom_blocks
-        
+
         # Load manual holidays
         manual_holidays = []
         for holiday in config.get('manual_holidays', []):
@@ -224,10 +240,31 @@ def load_config_from_dict(config):
                 'date': date.fromisoformat(holiday['date'])
             })
         st.session_state['config_manual_holidays'] = manual_holidays
-        
+
+        # Load generated events if they exist
+        if 'generated_events' in config:
+            events = []
+            for e in config['generated_events']:
+                events.append({
+                    'PI': e['PI'],
+                    'Tren': e['Tren'],
+                    'Evento': e['Evento'],
+                    'Inicio': date.fromisoformat(e['Inicio']),
+                    'Fin': date.fromisoformat(e['Fin']),
+                    'Tipo': e['Tipo'],
+                    'ID': e['ID']
+                })
+            st.session_state['events'] = events
+            st.session_state['generated'] = True
+            st.session_state['train_a_name'] = config.get('train_a_name', 'Train A')
+            st.session_state['train_b_name'] = config.get('train_b_name', 'Train B')
+            st.session_state['train_a_color'] = config.get('train_a_color', '#3788d8')
+            st.session_state['train_b_color'] = config.get('train_b_color', '#dc3545')
+            st.session_state['lang'] = config.get('language', 'en')
+
         return True
     except Exception as e:
-        st.error(f"{t['config_error']}: {str(e)}")
+        st.error(f"Error loading: {str(e)}")
         return False
 
 # Save/Load Section
@@ -239,9 +276,8 @@ uploaded_file = st.sidebar.file_uploader(t['load_config_file'], type=['json'], k
 if uploaded_file is not None:
     try:
         config_data = json.load(uploaded_file)
-        if load_config_from_dict(config_data):
+        if load_full_config_from_dict(config_data):
             st.sidebar.success(t['config_loaded'])
-            # Removed st.rerun() to prevent freeze
     except Exception as e:
         st.sidebar.error(f"{t['config_error']}: {str(e)}")
 
@@ -253,12 +289,12 @@ def add_business_days(start_date, num_days, blocked_dates=[]):
     """Add business days to a date (excludes weekends and blocked dates)"""
     current = start_date
     days_added = 0
-    
+
     while days_added < num_days:
         current += timedelta(days=1)
         if current.weekday() < 5 and current not in blocked_dates:
             days_added += 1
-    
+
     return current
 
 def get_next_tuesday(start_date):
@@ -271,35 +307,30 @@ def get_next_tuesday(start_date):
 def get_blocked_dates(year, custom_blocks=[], manual_holidays=[], include_canada=True):
     """Get all blocked dates: Canada holidays + custom periods + manual holidays"""
     blocked = set()
-    
-    # Canada holidays
+
     if include_canada:
         ca_holidays = holidays.Canada(years=[year, year+1])
         blocked = set(ca_holidays.keys())
-    
-    # Custom blocked periods
+
     for block in custom_blocks:
         current = block['start']
         while current <= block['end']:
             blocked.add(current)
             current += timedelta(days=1)
-    
-    # Manual holidays
+
     for holiday in manual_holidays:
         blocked.add(holiday['date'])
-    
+
     return blocked
 
 def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blocked_dates=[]):
     """Calculate all events for a PI (Planning + 6 iterations)"""
     events = []
-    
+
     adjusted_start = pi_start_date + timedelta(days=offset_days)
-    
-    # PI Planning (Tuesday and Wednesday)
     pi_planning_start = get_next_tuesday(adjusted_start)
     pi_planning_end = pi_planning_start + timedelta(days=1)
-    
+
     events.append({
         "PI": f"PI Q{pi_number}",
         "Tren": train_name,
@@ -309,13 +340,12 @@ def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blo
         "Tipo": "planning",
         "ID": f"Q{pi_number}_{train_name}_planning"
     })
-    
+
     iteration_start = pi_planning_end + timedelta(days=1)
-    
-    # 6 iterations of 10 business days each
+
     for i in range(1, 7):
         iter_end = add_business_days(iteration_start, 9, blocked_dates)
-        
+
         events.append({
             "PI": f"PI Q{pi_number}",
             "Tren": train_name,
@@ -325,15 +355,15 @@ def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blo
             "Tipo": "iteration",
             "ID": f"Q{pi_number}_{train_name}_iter{i}"
         })
-        
+
         iteration_start = add_business_days(iter_end, 1, blocked_dates)
-    
+
     return events
 
 def add_hackathon_event(events_train_a, events_train_b, hackathon_iteration=3, hackathon_week=1, custom_dates=None, lang='en'):
     """Add hackathon event"""
     t = TRANSLATIONS[lang]
-    
+
     if custom_dates:
         return {
             "PI": "Multiple",
@@ -344,20 +374,20 @@ def add_hackathon_event(events_train_a, events_train_b, hackathon_iteration=3, h
             "Tipo": "hackathon",
             "ID": "hackathon_custom"
         }
-    
+
     target_iteration = f"{t['iteration']} {hackathon_iteration}"
-    
+
     for event in events_train_a:
         if event["Evento"] == target_iteration:
             iter_start = event["Inicio"]
-            
+
             if hackathon_week == 1:
                 hack_start = iter_start
             else:
                 hack_start = add_business_days(iter_start, 5)
-            
+
             hack_end = add_business_days(hack_start, 4)
-            
+
             return {
                 "PI": event["PI"],
                 "Tren": t['both_trains'],
@@ -367,7 +397,7 @@ def add_hackathon_event(events_train_a, events_train_b, hackathon_iteration=3, h
                 "Tipo": "hackathon",
                 "ID": f"{event['PI']}_hackathon"
             }
-    
+
     return None
 
 def recalculate_events_from_edit(all_events, edited_event_id, new_start, new_end, blocked_dates=[]):
@@ -379,26 +409,26 @@ def recalculate_events_from_edit(all_events, edited_event_id, new_start, new_end
             all_events[i]["Fin"] = new_end
             edited_index = i
             break
-    
+
     if edited_index is None:
         return all_events
-    
+
     edited_event = all_events[edited_index]
-    
+
     if edited_event["Tipo"] == "iteration":
         pi = edited_event["PI"]
         tren = edited_event["Tren"]
         next_start = add_business_days(new_end, 1, blocked_dates)
-        
+
         for i in range(edited_index + 1, len(all_events)):
             if (all_events[i]["PI"] == pi and 
                 all_events[i]["Tren"] == tren and 
                 all_events[i]["Tipo"] == "iteration"):
-                
+
                 all_events[i]["Inicio"] = next_start
                 all_events[i]["Fin"] = add_business_days(next_start, 9, blocked_dates)
                 next_start = add_business_days(all_events[i]["Fin"], 1, blocked_dates)
-    
+
     return all_events
 
 # ============= USER INTERFACE =============
@@ -480,7 +510,7 @@ if hack_mode == t['auto_iteration']:
                                      index=st.session_state.get('config_hack_iter', 3) - 1,
                                      key='input_hack_iter')
     st.session_state['config_hack_iter'] = hack_iter
-    
+
     hack_week = st.sidebar.radio(t['week_in_iteration'], [1, 2], 
                                  index=st.session_state.get('config_hack_week', 1) - 1,
                                  key='input_hack_week')
@@ -522,11 +552,11 @@ custom_blocks = []
 for i in range(num_blocks):
     st.sidebar.write(f"{t['period']} {i+1}")
     col_b1, col_b2 = st.sidebar.columns(2)
-    
+
     default_blocks = st.session_state.get('config_custom_blocks', [])
     default_start = default_blocks[i]['start'] if i < len(default_blocks) else date(year, 12, 15)
     default_end = default_blocks[i]['end'] if i < len(default_blocks) else date(year+1, 1, 3)
-    
+
     with col_b1:
         block_start = st.sidebar.date_input(t['start'], value=default_start, key=f"block_start_{i}")
     with col_b2:
@@ -548,11 +578,11 @@ manual_holidays = []
 for i in range(num_manual_holidays):
     st.sidebar.write(f"{t['holiday']} {i+1}")
     col_h1, col_h2 = st.sidebar.columns(2)
-    
+
     default_holidays = st.session_state.get('config_manual_holidays', [])
     default_name = default_holidays[i]['name'] if i < len(default_holidays) else f"Holiday {i+1}"
     default_date = default_holidays[i]['date'] if i < len(default_holidays) else date(year, 1, 1)
-    
+
     with col_h1:
         holiday_name = st.sidebar.text_input(t['holiday_name'], value=default_name, key=f"holiday_name_{i}")
     with col_h2:
@@ -561,12 +591,12 @@ for i in range(num_manual_holidays):
 
 st.session_state['config_manual_holidays'] = manual_holidays
 
-# Download configuration button
-config_json = json.dumps(create_config_dict(), indent=2)
+# Download FULL configuration button (includes everything)
+config_json = json.dumps(create_full_config_dict(), indent=2)
 st.sidebar.download_button(
     label=t['save_config_file'],
     data=config_json,
-    file_name=f"pi_cadence_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+    file_name=f"pi_cadence_FULL_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
     mime="application/json",
     key='download_config'
 )
@@ -574,36 +604,28 @@ st.sidebar.download_button(
 # ============= EVENT CALCULATION =============
 
 if st.sidebar.button(t['generate'], type="primary"):
-    # Calculate blocked dates
     blocked_dates = get_blocked_dates(year, custom_blocks, manual_holidays, include_canada_holidays)
-    
+
     all_events = []
-    
-    # Calculate for each PI
     current_pi_date = first_pi_date
-    
+
     for pi_num in range(1, num_pis + 1):
-        # Train A events
         events_a = calculate_pi_events(current_pi_date, pi_num, train_a_name, 0, blocked_dates)
         all_events.extend(events_a)
-        
-        # Train B events
+
         events_b = calculate_pi_events(current_pi_date, pi_num, train_b_name, train_b_offset, blocked_dates)
         all_events.extend(events_b)
-        
-        # Add Hackathon
+
         if hack_mode == t['auto_iteration']:
             hackathon = add_hackathon_event(events_a, events_b, hack_iter, hack_week, lang=lang)
         else:
             hackathon = add_hackathon_event(events_a, events_b, custom_dates=custom_hack_dates, lang=lang)
-        
+
         if hackathon and pi_num == 1:
             all_events.append(hackathon)
-        
-        # Next PI: approximately 12 weeks later
+
         current_pi_date = add_business_days(current_pi_date, 60, blocked_dates)
-    
-    # Save to session state
+
     st.session_state['events'] = all_events
     st.session_state['blocked_dates'] = blocked_dates
     st.session_state['train_a_name'] = train_a_name
@@ -625,51 +647,50 @@ if st.session_state.get('generated', False):
     train_b_color = st.session_state.get('train_b_color', '#dc3545')
     stored_lang = st.session_state.get('lang', 'en')
     t_display = TRANSLATIONS[stored_lang]
-    
+
     # Button to toggle edit mode
     col_btn1, col_btn2 = st.columns([1, 5])
     with col_btn1:
         if st.button(t[('edit_dates' if not st.session_state.get('edit_mode', False) else 'view_calendar')]):
             st.session_state['edit_mode'] = not st.session_state.get('edit_mode', False)
             st.rerun()
-    
+
     # ============= EDIT MODE =============
     if st.session_state.get('edit_mode', False):
         st.markdown(f"### {t['edit_mode_title']}")
         st.info(t['edit_mode_info'])
-        
-        # Group by PI and Train
+
         pis = sorted(list(set([e["PI"] for e in events if e["Tipo"] != "hackathon"])))
-        
+
         for pi in pis:
             st.markdown(f"#### {pi}")
-            
+
             trenes = sorted(list(set([e["Tren"] for e in events if e["PI"] == pi and e["Tren"] != t_display['both_trains']])))
-            
+
             for tren in trenes:
                 with st.expander(f"📋 {tren}", expanded=False):
                     pi_events = [e for e in events if e["PI"] == pi and e["Tren"] == tren]
-                    
+
                     for event in pi_events:
                         col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-                        
+
                         with col1:
                             st.write(f"**{event['Evento']}**")
-                        
+
                         with col2:
                             new_start = st.date_input(
                                 t['start'],
                                 value=event["Inicio"],
                                 key=f"start_{event['ID']}"
                             )
-                        
+
                         with col3:
                             new_end = st.date_input(
                                 t['end'],
                                 value=event["Fin"],
                                 key=f"end_{event['ID']}"
                             )
-                        
+
                         with col4:
                             if st.button("💾", key=f"save_{event['ID']}"):
                                 st.session_state['events'] = recalculate_events_from_edit(
@@ -681,32 +702,32 @@ if st.session_state.get('generated', False):
                                 )
                                 st.success(t['saved'])
                                 st.rerun()
-        
+
         # Edit Hackathon
         st.markdown(f"#### {t['hackathon']}")
         hack_events = [e for e in events if e["Tipo"] == "hackathon"]
-        
+
         if hack_events:
             for event in hack_events:
                 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-                
+
                 with col1:
                     st.write(f"**{event['Evento']}**")
-                
+
                 with col2:
                     new_start = st.date_input(
                         t['start'],
                         value=event["Inicio"],
                         key=f"start_{event['ID']}"
                     )
-                
+
                 with col3:
                     new_end = st.date_input(
                         t['end'],
                         value=event["Fin"],
                         key=f"end_{event['ID']}"
                     )
-                
+
                 with col4:
                     if st.button("💾", key=f"save_{event['ID']}"):
                         for i, e in enumerate(st.session_state['events']):
@@ -715,36 +736,32 @@ if st.session_state.get('generated', False):
                                 st.session_state['events'][i]["Fin"] = new_end
                         st.success(t['saved'])
                         st.rerun()
-    
+
     # ============= CALENDAR VIEW =============
     else:
         st.markdown(f"### {t['calendar_view']}")
-        
-        # Train filter for calendar
+
         col_filter1, col_filter2 = st.columns([1, 4])
         with col_filter1:
             calendar_train_filter = st.selectbox(
                 f"{t['show_in_calendar']}",
                 [t['both_trains'], train_a_name, train_b_name]
             )
-        
-        # Convert events to FullCalendar format
+
         calendar_events = []
-        
+
         for e in events:
-            # Apply train filter
             if calendar_train_filter != t['both_trains']:
                 if e["Tren"] not in [calendar_train_filter, t_display['both_trains']]:
                     continue
-            
-            # Determine color
+
             if e["Tipo"] == "hackathon":
-                event_color = "#fd7e14"  # Orange
+                event_color = "#fd7e14"
             elif e["Tipo"] == "planning":
-                event_color = "#6c757d"  # Gray
-            else:  # iteration
+                event_color = "#6c757d"
+            else:
                 event_color = train_a_color if e["Tren"] == train_a_name else train_b_color
-            
+
             calendar_events.append({
                 "title": f"{e['Tren']} - {e['Evento']}",
                 "start": e["Inicio"].strftime("%Y-%m-%d"),
@@ -752,8 +769,7 @@ if st.session_state.get('generated', False):
                 "color": event_color,
                 "resourceId": e["Tren"]
             })
-        
-        # Calendar options
+
         calendar_options = {
             "editable": False,
             "selectable": False,
@@ -767,8 +783,7 @@ if st.session_state.get('generated', False):
             "navLinks": True,
             "dayMaxEvents": True,
         }
-        
-        # Color legend
+
         col_legend1, col_legend2, col_legend3, col_legend4 = st.columns(4)
         with col_legend1:
             st.markdown(f'<div style="background-color:{train_a_color}; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{train_a_name}</b></div>', unsafe_allow_html=True)
@@ -778,15 +793,14 @@ if st.session_state.get('generated', False):
             st.markdown(f'<div style="background-color:#6c757d; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{t["pi_planning"]}</b></div>', unsafe_allow_html=True)
         with col_legend4:
             st.markdown(f'<div style="background-color:#fd7e14; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{t["hackathon"].replace("🎯 ", "")}</b></div>', unsafe_allow_html=True)
-        
-        # Display calendar
+
         cal = calendar(events=calendar_events, options=calendar_options, key="pi_calendar")
-        
+
         st.markdown("---")
-        
+
         # ============= FILTERS AND DETAILS =============
         st.markdown(f"### {t['event_details']}")
-        
+
         col1, col2, col3 = st.columns(3)
         with col1:
             filter_train = st.selectbox(t['filter_train'], [t['all'], train_a_name, train_b_name, t_display['both_trains']])
@@ -794,16 +808,15 @@ if st.session_state.get('generated', False):
             filter_pi = st.selectbox(t['filter_pi'], [t['all']] + sorted(list(set([e["PI"] for e in events]))))
         with col3:
             filter_event = st.selectbox(t['filter_type'], [t['all'], t['pi_planning'], t['iterations'], t['hackathon'].replace('🎯 ', '')])
-        
-        # Apply filters
+
         filtered_events = events.copy()
-        
+
         if filter_train != t['all']:
             filtered_events = [e for e in filtered_events if e["Tren"] == filter_train or e["Tren"] == t_display['both_trains']]
-        
+
         if filter_pi != t['all']:
             filtered_events = [e for e in filtered_events if e["PI"] == filter_pi]
-        
+
         if filter_event != t['all']:
             if filter_event == t['pi_planning']:
                 filtered_events = [e for e in filtered_events if e["Tipo"] == "planning"]
@@ -811,15 +824,14 @@ if st.session_state.get('generated', False):
                 filtered_events = [e for e in filtered_events if e["Tipo"] == "iteration"]
             elif filter_event == t['hackathon'].replace('🎯 ', ''):
                 filtered_events = [e for e in filtered_events if e["Tipo"] == "hackathon"]
-        
-        # Display as cards
+
         for e in sorted(filtered_events, key=lambda x: x["Inicio"]):
             color_map_emoji = {
                 "planning": "🔵",
                 "iteration": "🟢",
                 "hackathon": "🟠"
             }
-            
+
             with st.container(border=True):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
@@ -828,26 +840,24 @@ if st.session_state.get('generated', False):
                 with col_b:
                     days = (e["Fin"] - e["Inicio"]).days + 1
                     st.metric(t['duration'], f"{days} {t['days']}")
-                
+
                 col1, col2 = st.columns(2)
                 with col1:
                     st.write(f'📍 **{t["start"]}:** {e["Inicio"].strftime("%d/%m/%Y (%A)")}')
                 with col2:
                     st.write(f'🏁 **{t["end"]}:** {e["Fin"].strftime("%d/%m/%Y (%A)")}')
-        
-        # Summary table
+
         st.markdown("---")
         st.markdown(f"### {t['summary_table']}")
-        
+
         df = pd.DataFrame(filtered_events)
         df[t['start']] = df['Inicio'].apply(lambda x: x.strftime('%d/%m/%Y'))
         df[t['end']] = df['Fin'].apply(lambda x: x.strftime('%d/%m/%Y'))
         df = df[['PI', 'Tren', 'Evento', t['start'], t['end']]]
         df.columns = ['PI', t['filter_train'].replace('Filter by ', '').replace('Filtrer par ', ''), t['event'], t['start'], t['end']]
-        
+
         st.dataframe(df, use_container_width=True, hide_index=True)
-        
-        # Download button
+
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label=t['download_csv'],
@@ -861,4 +871,3 @@ else:
 
 st.markdown("---")
 st.caption(t['version'])
-
