@@ -241,7 +241,7 @@ if uploaded_file is not None:
         config_data = json.load(uploaded_file)
         if load_config_from_dict(config_data):
             st.sidebar.success(t['config_loaded'])
-            st.rerun()
+            # Removed st.rerun() to prevent freeze
     except Exception as e:
         st.sidebar.error(f"{t['config_error']}: {str(e)}")
 
@@ -861,3 +861,4 @@ else:
 
 st.markdown("---")
 st.caption(t['version'])
+
