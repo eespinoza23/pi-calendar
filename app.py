@@ -285,8 +285,10 @@ st.sidebar.markdown("---")
 
 # ============= HELPER FUNCTIONS =============
 
-def add_business_days(start_date, num_days, blocked_dates=[]):
+def add_business_days(start_date, num_days, blocked_dates=None):
     """Add business days to a date (excludes weekends and blocked dates)"""
+    if blocked_dates is None:
+        blocked_dates = set()
     current = start_date
     days_added = 0
 
@@ -300,12 +302,16 @@ def add_business_days(start_date, num_days, blocked_dates=[]):
 def get_next_tuesday(start_date):
     """Find the next Tuesday from a given date"""
     days_ahead = 1 - start_date.weekday()
-    if days_ahead <= 0:
+    if days_ahead < 0:
         days_ahead += 7
     return start_date + timedelta(days=days_ahead)
 
-def get_blocked_dates(year, custom_blocks=[], manual_holidays=[], include_canada=True):
+def get_blocked_dates(year, custom_blocks=None, manual_holidays=None, include_canada=True):
     """Get all blocked dates: Canada holidays + custom periods + manual holidays"""
+    if custom_blocks is None:
+        custom_blocks = []
+    if manual_holidays is None:
+        manual_holidays = []
     blocked = set()
 
     if include_canada:
@@ -323,8 +329,11 @@ def get_blocked_dates(year, custom_blocks=[], manual_holidays=[], include_canada
 
     return blocked
 
-def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blocked_dates=[]):
+def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blocked_dates=None, lang='en'):
     """Calculate all events for a PI (Planning + 6 iterations)"""
+    if blocked_dates is None:
+        blocked_dates = set()
+    t_local = TRANSLATIONS[lang]
     events = []
 
     adjusted_start = pi_start_date + timedelta(days=offset_days)
@@ -349,7 +358,7 @@ def calculate_pi_events(pi_start_date, pi_number, train_name, offset_days=0, blo
         events.append({
             "PI": f"PI Q{pi_number}",
             "Tren": train_name,
-            "Evento": f"{t['iteration']} {i}",
+            "Evento": f"{t_local['iteration']} {i}",
             "Inicio": iteration_start,
             "Fin": iter_end,
             "Tipo": "iteration",
@@ -519,12 +528,12 @@ if hack_mode == t['auto_iteration']:
 else:
     col_h1, col_h2 = st.sidebar.columns(2)
     with col_h1:
-        hack_start = st.sidebar.date_input(t['start_hackathon'], 
+        hack_start = st.date_input(t['start_hackathon'],
                                           value=st.session_state.get('config_hack_start', date(year, 4, 15)),
                                           key='input_hack_start')
         st.session_state['config_hack_start'] = hack_start
     with col_h2:
-        hack_end = st.sidebar.date_input(t['end_hackathon'], 
+        hack_end = st.date_input(t['end_hackathon'],
                                         value=st.session_state.get('config_hack_end', date(year, 4, 19)),
                                         key='input_hack_end')
         st.session_state['config_hack_end'] = hack_end
@@ -558,9 +567,9 @@ for i in range(num_blocks):
     default_end = default_blocks[i]['end'] if i < len(default_blocks) else date(year+1, 1, 3)
 
     with col_b1:
-        block_start = st.sidebar.date_input(t['start'], value=default_start, key=f"block_start_{i}")
+        block_start = st.date_input(t['start'], value=default_start, key=f"block_start_{i}")
     with col_b2:
-        block_end = st.sidebar.date_input(t['end'], value=default_end, key=f"block_end_{i}")
+        block_end = st.date_input(t['end'], value=default_end, key=f"block_end_{i}")
     custom_blocks.append({'start': block_start, 'end': block_end})
 
 st.session_state['config_custom_blocks'] = custom_blocks
@@ -610,10 +619,10 @@ if st.sidebar.button(t['generate'], type="primary"):
     current_pi_date = first_pi_date
 
     for pi_num in range(1, num_pis + 1):
-        events_a = calculate_pi_events(current_pi_date, pi_num, train_a_name, 0, blocked_dates)
+        events_a = calculate_pi_events(current_pi_date, pi_num, train_a_name, 0, blocked_dates, lang)
         all_events.extend(events_a)
 
-        events_b = calculate_pi_events(current_pi_date, pi_num, train_b_name, train_b_offset, blocked_dates)
+        events_b = calculate_pi_events(current_pi_date, pi_num, train_b_name, train_b_offset, blocked_dates, lang)
         all_events.extend(events_b)
 
         if hack_mode == t['auto_iteration']:
@@ -621,10 +630,11 @@ if st.sidebar.button(t['generate'], type="primary"):
         else:
             hackathon = add_hackathon_event(events_a, events_b, custom_dates=custom_hack_dates, lang=lang)
 
-        if hackathon and pi_num == 1:
+        if hackathon:
             all_events.append(hackathon)
 
-        current_pi_date = add_business_days(current_pi_date, 60, blocked_dates)
+        last_end = max(events_a[-1]["Fin"], events_b[-1]["Fin"])
+        current_pi_date = add_business_days(last_end, 1, blocked_dates)
 
     st.session_state['events'] = all_events
     st.session_state['blocked_dates'] = blocked_dates
