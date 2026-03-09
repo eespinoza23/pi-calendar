@@ -10,8 +10,6 @@ __pycache__/
 *.so
 .Python
 
-# Streamlit
-.streamlit/
 
 # IDE
 .vscode/

@@ -147,6 +147,131 @@ st.set_page_config(page_title="PI Cadence Calculator", layout="wide")
 lang = st.sidebar.selectbox("🌐 Language / Langue", ["en", "fr"], format_func=lambda x: "English" if x == "en" else "Français")
 t = TRANSLATIONS[lang]
 
+# ============= DESIGN SYSTEM =============
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"], .stMarkdown, .stText {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Page title */
+h1 {
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    color: #F1F5F9 !important;
+    padding-bottom: 0.25rem !important;
+}
+h2 { font-weight: 600 !important; letter-spacing: -0.015em !important; }
+h3 { font-weight: 600 !important; font-size: 1.1rem !important; color: #CBD5E1 !important; }
+
+/* Primary button */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+    transition: all 0.15s ease !important;
+}
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45) !important;
+}
+
+/* Secondary buttons */
+.stButton > button[kind="secondary"] {
+    border-radius: 8px !important;
+    border: 1px solid #334155 !important;
+    font-weight: 500 !important;
+    background: #1E293B !important;
+    color: #CBD5E1 !important;
+    transition: all 0.15s ease !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    border-color: #3B82F6 !important;
+    color: #93C5FD !important;
+}
+
+/* Metric cards */
+[data-testid="metric-container"] {
+    background: #1E293B !important;
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+    padding: 14px 18px !important;
+}
+[data-testid="metric-container"] label {
+    color: #64748B !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    color: #F1F5F9 !important;
+}
+
+/* Event detail cards */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 12px !important;
+    border: 1px solid #334155 !important;
+    background: #1E293B !important;
+    padding: 4px !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    border-color: #475569 !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+}
+
+/* Expanders */
+[data-testid="stExpander"] {
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+    background: #1E293B !important;
+}
+
+/* Dividers */
+hr { border-color: #1E293B !important; margin: 1.25rem 0 !important; }
+
+/* Captions */
+[data-testid="stCaptionContainer"] { color: #475569 !important; font-size: 0.78rem !important; }
+
+/* Alert/info boxes */
+[data-testid="stAlert"] { border-radius: 10px !important; border-left-width: 3px !important; }
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid #334155 !important;
+}
+
+/* Download button */
+.stDownloadButton > button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    border: 1px solid #334155 !important;
+    transition: all 0.15s ease !important;
+}
+
+/* Sidebar section headers */
+[data-testid="stSidebar"] .stSubheader { color: #94A3B8 !important; font-size: 0.75rem !important; text-transform: uppercase !important; letter-spacing: 0.08em !important; }
+
+/* Sidebar dividers */
+[data-testid="stSidebar"] hr { border-color: #1E3A5F !important; }
+
+/* Selectbox & inputs */
+[data-baseweb="select"] > div { border-radius: 8px !important; border-color: #334155 !important; }
+[data-baseweb="input"] > div { border-radius: 8px !important; border-color: #334155 !important; }
+</style>
+""", unsafe_allow_html=True)
+
 st.title(t['title'])
 
 # ============= ENHANCED CONFIGURATION SAVE/LOAD =============
@@ -160,9 +285,9 @@ def create_full_config_dict():
         'num_pis': st.session_state.get('config_num_pis', 4),
         'first_pi_date': st.session_state.get('config_first_pi_date', date(2026, 1, 6)).isoformat(),
         'train_a_name': st.session_state.get('config_train_a_name', 'Train A'),
-        'train_a_color': st.session_state.get('config_train_a_color', '#3788d8'),
+        'train_a_color': st.session_state.get('config_train_a_color', '#2563EB'),
         'train_b_name': st.session_state.get('config_train_b_name', 'Train B'),
-        'train_b_color': st.session_state.get('config_train_b_color', '#dc3545'),
+        'train_b_color': st.session_state.get('config_train_b_color', '#10B981'),
         'train_b_offset': st.session_state.get('config_train_b_offset', 7),
         'hack_mode': st.session_state.get('config_hack_mode', 'auto'),
         'hack_iter': st.session_state.get('config_hack_iter', 3),
@@ -208,9 +333,9 @@ def load_full_config_from_dict(config):
         st.session_state['config_num_pis'] = config.get('num_pis', 4)
         st.session_state['config_first_pi_date'] = date.fromisoformat(config.get('first_pi_date', '2026-01-06'))
         st.session_state['config_train_a_name'] = config.get('train_a_name', 'Train A')
-        st.session_state['config_train_a_color'] = config.get('train_a_color', '#3788d8')
+        st.session_state['config_train_a_color'] = config.get('train_a_color', '#2563EB')
         st.session_state['config_train_b_name'] = config.get('train_b_name', 'Train B')
-        st.session_state['config_train_b_color'] = config.get('train_b_color', '#dc3545')
+        st.session_state['config_train_b_color'] = config.get('train_b_color', '#10B981')
         st.session_state['config_train_b_offset'] = config.get('train_b_offset', 7)
         st.session_state['config_hack_mode'] = config.get('hack_mode', 'auto')
         st.session_state['config_hack_iter'] = config.get('hack_iter', 3)
@@ -258,8 +383,8 @@ def load_full_config_from_dict(config):
             st.session_state['generated'] = True
             st.session_state['train_a_name'] = config.get('train_a_name', 'Train A')
             st.session_state['train_b_name'] = config.get('train_b_name', 'Train B')
-            st.session_state['train_a_color'] = config.get('train_a_color', '#3788d8')
-            st.session_state['train_b_color'] = config.get('train_b_color', '#dc3545')
+            st.session_state['train_a_color'] = config.get('train_a_color', '#2563EB')
+            st.session_state['train_b_color'] = config.get('train_b_color', '#10B981')
             st.session_state['lang'] = config.get('language', 'en')
 
         return True
@@ -474,8 +599,8 @@ train_a_name = st.sidebar.text_input(f"{t['train_name']} A",
                                      key='input_train_a_name')
 st.session_state['config_train_a_name'] = train_a_name
 
-train_a_color = st.sidebar.color_picker(f"{t['train_color']} A", 
-                                       value=st.session_state.get('config_train_a_color', '#3788d8'),
+train_a_color = st.sidebar.color_picker(f"{t['train_color']} A",
+                                       value=st.session_state.get('config_train_a_color', '#2563EB'),
                                        key='input_train_a_color')
 st.session_state['config_train_a_color'] = train_a_color
 
@@ -484,8 +609,8 @@ train_b_name = st.sidebar.text_input(f"{t['train_name']} B",
                                      key='input_train_b_name')
 st.session_state['config_train_b_name'] = train_b_name
 
-train_b_color = st.sidebar.color_picker(f"{t['train_color']} B", 
-                                       value=st.session_state.get('config_train_b_color', '#dc3545'),
+train_b_color = st.sidebar.color_picker(f"{t['train_color']} B",
+                                       value=st.session_state.get('config_train_b_color', '#10B981'),
                                        key='input_train_b_color')
 st.session_state['config_train_b_color'] = train_b_color
 
@@ -766,9 +891,9 @@ if st.session_state.get('generated', False):
                     continue
 
             if e["Tipo"] == "hackathon":
-                event_color = "#fd7e14"
+                event_color = "#F97316"
             elif e["Tipo"] == "planning":
-                event_color = "#6c757d"
+                event_color = "#8B5CF6"
             else:
                 event_color = train_a_color if e["Tren"] == train_a_name else train_b_color
 
@@ -795,14 +920,17 @@ if st.session_state.get('generated', False):
         }
 
         col_legend1, col_legend2, col_legend3, col_legend4 = st.columns(4)
+        _legend_style = "display:flex;align-items:center;gap:10px;background:#1E293B;border:1px solid #334155;border-radius:10px;padding:10px 14px;"
+        _dot_style = "width:12px;height:12px;border-radius:50%;flex-shrink:0;"
+        _label_style = "font-size:0.85rem;font-weight:600;color:#E2E8F0;"
         with col_legend1:
-            st.markdown(f'<div style="background-color:{train_a_color}; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{train_a_name}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_a_color};box-shadow:0 0 8px {train_a_color}80;"></span><span style="{_label_style}">{train_a_name}</span></div>', unsafe_allow_html=True)
         with col_legend2:
-            st.markdown(f'<div style="background-color:{train_b_color}; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{train_b_name}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_b_color};box-shadow:0 0 8px {train_b_color}80;"></span><span style="{_label_style}">{train_b_name}</span></div>', unsafe_allow_html=True)
         with col_legend3:
-            st.markdown(f'<div style="background-color:#6c757d; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{t["pi_planning"]}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#8B5CF6;box-shadow:0 0 8px #8B5CF680;"></span><span style="{_label_style}">{t["pi_planning"]}</span></div>', unsafe_allow_html=True)
         with col_legend4:
-            st.markdown(f'<div style="background-color:#fd7e14; padding:10px; border-radius:5px; text-align:center; color:white;"><b>{t["hackathon"].replace("🎯 ", "")}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#F97316;box-shadow:0 0 8px #F9731680;"></span><span style="{_label_style}">{t["hackathon"].replace("🎯 ", "")}</span></div>', unsafe_allow_html=True)
 
         cal = calendar(events=calendar_events, options=calendar_options, key="pi_calendar")
 
@@ -835,27 +963,37 @@ if st.session_state.get('generated', False):
             elif filter_event == t['hackathon'].replace('🎯 ', ''):
                 filtered_events = [e for e in filtered_events if e["Tipo"] == "hackathon"]
 
+        color_map_type = {
+            "planning": "#8B5CF6",
+            "iteration": train_a_color,
+            "hackathon": "#F97316"
+        }
+
         for e in sorted(filtered_events, key=lambda x: x["Inicio"]):
-            color_map_emoji = {
-                "planning": "🔵",
-                "iteration": "🟢",
-                "hackathon": "🟠"
-            }
+            event_accent = color_map_type.get(e["Tipo"], "#64748B")
+            if e["Tipo"] == "iteration":
+                event_accent = train_a_color if e["Tren"] == train_a_name else train_b_color
 
             with st.container(border=True):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
-                    st.subheader(f'{color_map_emoji.get(e["Tipo"], "⚪")} {e["Evento"]}')
-                    st.caption(f'{e["PI"]} – {e["Tren"]}')
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;">'
+                        f'<span style="width:10px;height:10px;border-radius:50%;background:{event_accent};'
+                        f'box-shadow:0 0 6px {event_accent}90;flex-shrink:0;"></span>'
+                        f'<span style="font-size:1rem;font-weight:600;color:#F1F5F9;">{e["Evento"]}</span></div>',
+                        unsafe_allow_html=True
+                    )
+                    st.caption(f'{e["PI"]} · {e["Tren"]}')
                 with col_b:
                     days = (e["Fin"] - e["Inicio"]).days + 1
                     st.metric(t['duration'], f"{days} {t['days']}")
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.write(f'📍 **{t["start"]}:** {e["Inicio"].strftime("%d/%m/%Y (%A)")}')
+                    st.markdown(f'<span style="color:#94A3B8;font-size:0.82rem;font-weight:500;">START</span><br><span style="color:#E2E8F0;font-weight:600;">{e["Inicio"].strftime("%d/%m/%Y")}</span><br><span style="color:#64748B;font-size:0.78rem;">{e["Inicio"].strftime("%A")}</span>', unsafe_allow_html=True)
                 with col2:
-                    st.write(f'🏁 **{t["end"]}:** {e["Fin"].strftime("%d/%m/%Y (%A)")}')
+                    st.markdown(f'<span style="color:#94A3B8;font-size:0.82rem;font-weight:500;">END</span><br><span style="color:#E2E8F0;font-weight:600;">{e["Fin"].strftime("%d/%m/%Y")}</span><br><span style="color:#64748B;font-size:0.78rem;">{e["Fin"].strftime("%A")}</span>', unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown(f"### {t['summary_table']}")
