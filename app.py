@@ -4,6 +4,7 @@ import pandas as pd
 from streamlit_calendar import calendar
 import holidays
 import json
+import streamlit.components.v1 as components
 
 # ============= TRANSLATIONS =============
 TRANSLATIONS = {
@@ -565,6 +566,225 @@ def recalculate_events_from_edit(all_events, edited_event_id, new_start, new_end
 
     return all_events
 
+
+# ============= TIMELINE VIEW =============
+
+def render_timeline(events, train_a_name, train_b_name, train_a_color, train_b_color):
+    """Generate a week-based PI cadence timeline HTML (replaces the Excel view)"""
+
+    MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+    def get_weeks(year, half):
+        m1, m2 = (1, 6) if half == 1 else (7, 12)
+        start = date(year, m1, 1)
+        monday = start - timedelta(days=start.weekday())
+        last_day = date(year, m2, 28) + timedelta(days=10)
+        last_day = last_day.replace(day=1) - timedelta(days=1)
+        weeks = []
+        w = monday
+        while w <= last_day:
+            weeks.append(w)
+            w += timedelta(weeks=1)
+        return weeks
+
+    def widx(d, weeks):
+        for i, w in enumerate(weeks):
+            if w <= d <= w + timedelta(days=6):
+                return i
+        return 0 if d < weeks[0] else len(weeks) - 1
+
+    def build_cells(evts, weeks, ta_name, ta_color, tb_color):
+        n = len(weeks)
+        cells = []
+        pos = 0
+        for e in sorted(evts, key=lambda x: x['Inicio']):
+            sw = max(0, widx(e['Inicio'], weeks))
+            ew = min(n - 1, widx(e['Fin'], weeks))
+            if ew < pos:
+                continue
+            if sw >= n:
+                break
+            sw = max(sw, pos)
+            if sw > pos:
+                cells.append(f'<td colspan="{sw - pos}" style="background:#060D18;border-right:1px solid #1E293B;"></td>')
+                pos = sw
+            colspan = max(1, ew - sw + 1)
+            if e['Tipo'] == 'planning':
+                bg, fg, fs, lbl = '#4C1D95', '#DDD6FE', '0.6rem', 'Planning'
+            elif e['Tipo'] == 'iteration':
+                num = e['Evento'].split()[-1]
+                if num == '6':
+                    bg, fg, fs, lbl = '#064E3B', '#6EE7B7', '0.65rem', 'Innov.'
+                else:
+                    bg = ta_color if e['Tren'] == ta_name else tb_color
+                    fg, fs, lbl = '#FFFFFF', '0.78rem', num
+            else:
+                bg, fg, fs, lbl = '#1E293B', '#94A3B8', '0.6rem', e['Evento'][:8]
+            tooltip = f"{e['Evento']} | {e['Inicio'].strftime('%d/%m')} → {e['Fin'].strftime('%d/%m')}"
+            cells.append(
+                f'<td colspan="{colspan}" title="{tooltip}" style="background:{bg};color:{fg};'
+                f'text-align:center;vertical-align:middle;padding:2px 1px;'
+                f'border:1px solid #0A1220;border-radius:3px;cursor:default;">'
+                f'<span style="font-size:{fs};font-weight:700;letter-spacing:0.02em;">{lbl}</span></td>'
+            )
+            pos = ew + 1
+        if pos < n:
+            cells.append(f'<td colspan="{n - pos}" style="background:#060D18;"></td>')
+        return ''.join(cells)
+
+    Q_HDR = {
+        'Q1': ('#1E3A5F', '#93C5FD'), 'Q2': ('#14532D', '#86EFAC'),
+        'Q3': ('#7C2D12', '#FED7AA'), 'Q4': ('#3B0764', '#D8B4FE'),
+    }
+    Q_MONTHS = {'Q1': (1, 3), 'Q2': (4, 6), 'Q3': (7, 9), 'Q4': (10, 12)}
+
+    years = sorted(set(e['Inicio'].year for e in events if e['Tipo'] != 'hackathon'))
+
+    css = """
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #060D18; font-family: 'Inter', sans-serif; padding: 8px 4px; }
+.pit-wrap { color: #E2E8F0; }
+.half-hdr { display: flex; align-items: center; gap: 10px; padding: 5px 10px;
+    background: #0F172A; border-radius: 6px 6px 0 0; border: 1px solid #1E293B;
+    border-bottom: none; margin-top: 14px; }
+.half-hdr .yr { font-size: 0.65rem; font-weight: 700; color: #475569;
+    text-transform: uppercase; letter-spacing: 0.12em; }
+.half-hdr .hl { font-size: 0.7rem; font-weight: 700; color: #64748B;
+    letter-spacing: 0.08em; }
+.tl-scroll { overflow-x: auto; border: 1px solid #1E293B; border-radius: 0 0 6px 6px; }
+.tl-table { border-collapse: collapse; table-layout: fixed; min-width: 100%; }
+.tl-table td, .tl-table th {
+    height: 30px; width: 42px; min-width: 42px; max-width: 42px;
+    overflow: hidden; white-space: nowrap; }
+.lbl-cell { width: 96px !important; min-width: 96px !important; max-width: 96px !important;
+    background: #0A1220; border-right: 2px solid #1E3A5F;
+    padding: 0 10px; text-align: right; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.04em; vertical-align: middle;
+    position: sticky; left: 0; z-index: 2; }
+.q-cell { text-align: center; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.1em; border-right: 2px solid #0A1220; padding: 4px 0; }
+.mo-cell { text-align: center; font-size: 0.6rem; font-weight: 600; color: #475569;
+    background: #0A1220; border-right: 1px solid #1E293B; }
+.wk-cell { text-align: center; font-size: 0.52rem; color: #334155;
+    background: #060D18; border-right: 1px solid #1E293B;
+    border-bottom: 1px solid #334155; }
+.hack-row td { height: 16px !important; }
+.hack-cell { background: linear-gradient(90deg, #78350F, #B45309) !important;
+    color: #FEF3C7 !important; text-align: center !important;
+    font-size: 0.54rem !important; font-weight: 800 !important;
+    letter-spacing: 0.14em !important; border-radius: 2px !important; }
+.legend { display: flex; gap: 16px; padding: 8px 4px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-lbl { font-size: 0.68rem; color: #94A3B8; }
+</style>"""
+
+    html = [css, '<div class="pit-wrap">']
+
+    # Legend
+    html.append(
+        f'<div class="legend">'
+        f'<div class="legend-item"><span class="legend-dot" style="background:#4C1D95;box-shadow:0 0 6px #4C1D9580;"></span><span class="legend-lbl">PI Planning</span></div>'
+        f'<div class="legend-item"><span class="legend-dot" style="background:{train_a_color};box-shadow:0 0 6px {train_a_color}80;"></span><span class="legend-lbl">{train_a_name}</span></div>'
+        f'<div class="legend-item"><span class="legend-dot" style="background:{train_b_color};box-shadow:0 0 6px {train_b_color}80;"></span><span class="legend-lbl">{train_b_name}</span></div>'
+        f'<div class="legend-item"><span class="legend-dot" style="background:#064E3B;box-shadow:0 0 6px #064E3B80;"></span><span class="legend-lbl">Innovation</span></div>'
+        f'<div class="legend-item"><span class="legend-dot" style="background:#B45309;box-shadow:0 0 6px #B4530980;"></span><span class="legend-lbl">Hackathon</span></div>'
+        f'</div>'
+    )
+
+    for year in years:
+        for half in [1, 2]:
+            weeks = get_weeks(year, half)
+            n = len(weeks)
+            quarters = ['Q1', 'Q2'] if half == 1 else ['Q3', 'Q4']
+            h_start = date(year, 1 if half == 1 else 7, 1)
+            h_end = date(year, 6 if half == 1 else 12, 30 if half == 1 else 31)
+
+            a_evts = [e for e in events if e['Tren'] == train_a_name
+                      and e['Tipo'] != 'hackathon'
+                      and e['Inicio'] <= h_end and e['Fin'] >= h_start]
+            b_evts = [e for e in events if e['Tren'] == train_b_name
+                      and e['Tipo'] != 'hackathon'
+                      and e['Inicio'] <= h_end and e['Fin'] >= h_start]
+            h_evts = [e for e in events if e['Tipo'] == 'hackathon'
+                      and e['Inicio'] <= h_end and e['Fin'] >= h_start]
+
+            ql = 'H1 &nbsp;·&nbsp; Q1 / Q2' if half == 1 else 'H2 &nbsp;·&nbsp; Q3 / Q4'
+            html.append(
+                f'<div class="half-hdr">'
+                f'<span class="yr">{year}</span>'
+                f'<span style="color:#1E3A5F;">|</span>'
+                f'<span class="hl">{ql}</span>'
+                f'</div>'
+            )
+            html.append('<div class="tl-scroll"><table class="tl-table">')
+
+            # Quarter header row
+            html.append('<tr>')
+            html.append('<th class="lbl-cell" rowspan="3" style="background:#0A1220;border-bottom:1px solid #334155;"></th>')
+            for q in quarters:
+                q1m, q2m = Q_MONTHS[q]
+                cnt = sum(1 for w in weeks if q1m <= (w + timedelta(days=3)).month <= q2m)
+                bg, fg = Q_HDR[q]
+                html.append(f'<th colspan="{cnt}" class="q-cell" style="background:{bg};color:{fg};">{q}</th>')
+            html.append('</tr>')
+
+            # Month header row
+            html.append('<tr>')
+            m_spans = {}
+            for w in weeks:
+                m = (w + timedelta(days=3)).month
+                m_spans[m] = m_spans.get(m, 0) + 1
+            seen_m = set()
+            for w in weeks:
+                m = (w + timedelta(days=3)).month
+                if m not in seen_m:
+                    html.append(f'<th colspan="{m_spans[m]}" class="mo-cell">{MONTHS[m - 1]}</th>')
+                    seen_m.add(m)
+            html.append('</tr>')
+
+            # Week date row
+            html.append('<tr>')
+            for w in weeks:
+                html.append(f'<th class="wk-cell">{w.strftime("%d")}</th>')
+            html.append('</tr>')
+
+            # Train A row
+            html.append(f'<tr><td class="lbl-cell" style="color:{train_a_color};">{train_a_name}</td>')
+            html.append(build_cells(a_evts, weeks, train_a_name, train_a_color, train_b_color))
+            html.append('</tr>')
+
+            # Hackathon row
+            if h_evts:
+                html.append('<tr class="hack-row">')
+                html.append('<td class="lbl-cell" style="font-size:0.5rem;color:#475569;height:16px!important;"></td>')
+                pos = 0
+                for hk in sorted(h_evts, key=lambda e: e['Inicio']):
+                    sw = max(0, min(widx(hk['Inicio'], weeks), n - 1))
+                    ew = max(sw, min(widx(hk['Fin'], weeks), n - 1))
+                    if sw > pos:
+                        html.append(f'<td colspan="{sw - pos}" style="background:#060D18;"></td>')
+                    cs = max(1, ew - sw + 1)
+                    html.append(f'<td colspan="{cs}" class="hack-cell">HACKATHON</td>')
+                    pos = ew + 1
+                if pos < n:
+                    html.append(f'<td colspan="{n - pos}" style="background:#060D18;"></td>')
+                html.append('</tr>')
+
+            # Train B row
+            html.append(f'<tr><td class="lbl-cell" style="color:{train_b_color};">{train_b_name}</td>')
+            html.append(build_cells(b_evts, weeks, train_a_name, train_a_color, train_b_color))
+            html.append('</tr>')
+
+            html.append('</table></div>')
+
+    html.append('</div>')
+    return ''.join(html)
+
+
 # ============= USER INTERFACE =============
 
 st.sidebar.header(t['config'])
@@ -874,65 +1094,73 @@ if st.session_state.get('generated', False):
 
     # ============= CALENDAR VIEW =============
     else:
-        st.markdown(f"### {t['calendar_view']}")
+        tab_cal, tab_timeline = st.tabs(["📅 Calendar", "📊 PI Timeline"])
 
-        col_filter1, col_filter2 = st.columns([1, 4])
-        with col_filter1:
-            calendar_train_filter = st.selectbox(
-                f"{t['show_in_calendar']}",
-                [t['both_trains'], train_a_name, train_b_name]
-            )
+        with tab_cal:
+            col_filter1, col_filter2 = st.columns([1, 4])
+            with col_filter1:
+                calendar_train_filter = st.selectbox(
+                    f"{t['show_in_calendar']}",
+                    [t['both_trains'], train_a_name, train_b_name]
+                )
 
-        calendar_events = []
+            calendar_events = []
 
-        for e in events:
-            if calendar_train_filter != t['both_trains']:
-                if e["Tren"] not in [calendar_train_filter, t_display['both_trains']]:
-                    continue
+            for e in events:
+                if calendar_train_filter != t['both_trains']:
+                    if e["Tren"] not in [calendar_train_filter, t_display['both_trains']]:
+                        continue
 
-            if e["Tipo"] == "hackathon":
-                event_color = "#F97316"
-            elif e["Tipo"] == "planning":
-                event_color = "#8B5CF6"
-            else:
-                event_color = train_a_color if e["Tren"] == train_a_name else train_b_color
+                if e["Tipo"] == "hackathon":
+                    event_color = "#F97316"
+                elif e["Tipo"] == "planning":
+                    event_color = "#8B5CF6"
+                else:
+                    event_color = train_a_color if e["Tren"] == train_a_name else train_b_color
 
-            calendar_events.append({
-                "title": f"{e['Tren']} - {e['Evento']}",
-                "start": e["Inicio"].strftime("%Y-%m-%d"),
-                "end": (e["Fin"] + timedelta(days=1)).strftime("%Y-%m-%d"),
-                "color": event_color,
-                "resourceId": e["Tren"]
-            })
+                calendar_events.append({
+                    "title": f"{e['Tren']} - {e['Evento']}",
+                    "start": e["Inicio"].strftime("%Y-%m-%d"),
+                    "end": (e["Fin"] + timedelta(days=1)).strftime("%Y-%m-%d"),
+                    "color": event_color,
+                    "resourceId": e["Tren"]
+                })
 
-        calendar_options = {
-            "editable": False,
-            "selectable": False,
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,dayGridWeek,listYear"
-            },
-            "initialView": "dayGridMonth",
-            "initialDate": str(events[0]["Inicio"]) if events else str(date.today()),
-            "navLinks": True,
-            "dayMaxEvents": True,
-        }
+            calendar_options = {
+                "editable": False,
+                "selectable": False,
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,dayGridWeek,listYear"
+                },
+                "initialView": "dayGridMonth",
+                "initialDate": str(events[0]["Inicio"]) if events else str(date.today()),
+                "navLinks": True,
+                "dayMaxEvents": True,
+            }
 
-        col_legend1, col_legend2, col_legend3, col_legend4 = st.columns(4)
-        _legend_style = "display:flex;align-items:center;gap:10px;background:#1E293B;border:1px solid #334155;border-radius:10px;padding:10px 14px;"
-        _dot_style = "width:12px;height:12px;border-radius:50%;flex-shrink:0;"
-        _label_style = "font-size:0.85rem;font-weight:600;color:#E2E8F0;"
-        with col_legend1:
-            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_a_color};box-shadow:0 0 8px {train_a_color}80;"></span><span style="{_label_style}">{train_a_name}</span></div>', unsafe_allow_html=True)
-        with col_legend2:
-            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_b_color};box-shadow:0 0 8px {train_b_color}80;"></span><span style="{_label_style}">{train_b_name}</span></div>', unsafe_allow_html=True)
-        with col_legend3:
-            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#8B5CF6;box-shadow:0 0 8px #8B5CF680;"></span><span style="{_label_style}">{t["pi_planning"]}</span></div>', unsafe_allow_html=True)
-        with col_legend4:
-            st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#F97316;box-shadow:0 0 8px #F9731680;"></span><span style="{_label_style}">{t["hackathon"].replace("🎯 ", "")}</span></div>', unsafe_allow_html=True)
+            col_legend1, col_legend2, col_legend3, col_legend4 = st.columns(4)
+            _legend_style = "display:flex;align-items:center;gap:10px;background:#1E293B;border:1px solid #334155;border-radius:10px;padding:10px 14px;"
+            _dot_style = "width:12px;height:12px;border-radius:50%;flex-shrink:0;"
+            _label_style = "font-size:0.85rem;font-weight:600;color:#E2E8F0;"
+            with col_legend1:
+                st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_a_color};box-shadow:0 0 8px {train_a_color}80;"></span><span style="{_label_style}">{train_a_name}</span></div>', unsafe_allow_html=True)
+            with col_legend2:
+                st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:{train_b_color};box-shadow:0 0 8px {train_b_color}80;"></span><span style="{_label_style}">{train_b_name}</span></div>', unsafe_allow_html=True)
+            with col_legend3:
+                st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#8B5CF6;box-shadow:0 0 8px #8B5CF680;"></span><span style="{_label_style}">{t["pi_planning"]}</span></div>', unsafe_allow_html=True)
+            with col_legend4:
+                st.markdown(f'<div style="{_legend_style}"><span style="{_dot_style}background:#F97316;box-shadow:0 0 8px #F9731680;"></span><span style="{_label_style}">{t["hackathon"].replace("🎯 ", "")}</span></div>', unsafe_allow_html=True)
 
-        cal = calendar(events=calendar_events, options=calendar_options, key="pi_calendar")
+            cal = calendar(events=calendar_events, options=calendar_options, key="pi_calendar")
+
+        with tab_timeline:
+            tl_html = render_timeline(events, train_a_name, train_b_name, train_a_color, train_b_color)
+            # Compute height: ~200px per year × number of years, min 400
+            n_years = len(set(e['Inicio'].year for e in events if e['Tipo'] != 'hackathon'))
+            tl_height = max(420, n_years * 340)
+            components.html(tl_html, height=tl_height, scrolling=True)
 
         st.markdown("---")
 
